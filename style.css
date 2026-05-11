@@ -40,12 +40,40 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 }
 
 #race-list { padding: 12px; }
+
+#filters {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f1f5f9;
+}
+.filter-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.filter-row:last-child { margin-bottom: 0; }
+.filter-row label {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; color: #475569;
+}
+.filter-row input[type="text"] {
+  padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px;
+  font-size: 12px; width: 120px;
+}
+.filter-row input[type="date"] {
+  padding: 3px 4px; border: 1px solid #cbd5e1; border-radius: 4px;
+  font-size: 12px;
+}
+.filter-row select {
+  padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px;
+  font-size: 12px; background: white;
+}
+.filter-row input[type="checkbox"] { margin: 0; }
 .race-card {
   background: white; border: 1px solid #e2e8f0; border-radius: 8px;
   padding: 12px; margin-bottom: 10px; cursor: pointer;
   transition: box-shadow 0.15s, transform 0.15s;
 }
-.race-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.race-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); border-color: #94a3b8; }
 .race-card.active { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
 .race-name { font-weight: 700; font-size: 15px; margin: 0 0 4px; color: #0f172a; }
 .race-meta { font-size: 12px; color: #64748b; margin: 2px 0; }
@@ -63,6 +91,35 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .popup-name { font-weight: 700; font-size: 14px; margin: 0 0 4px; }
 .popup-meta { font-size: 12px; color: #475569; margin: 2px 0; }
 .popup-meta a { color: #3b82f6; }
+
+.race-tooltip {
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  white-space: nowrap;
+}
+.race-tooltip::before { border-top-color: rgba(15, 23, 42, 0.85) !important; }
+
+.dist-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.legend {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px; color: #64748b;
+}
+.legend-item { display: flex; align-items: center; gap: 3px; }
 
 .user-marker {
   background: #3b82f6; border: 3px solid white; border-radius: 50%;

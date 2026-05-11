@@ -48,7 +48,12 @@ function parseUSDate(s) {
 
 function formatNiceDate(d) {
   if (!d) return '';
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatShortDate(d) {
+  if (!d) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 // ---------- zip code lookup (static JSON) ----------
@@ -79,6 +84,40 @@ function getUserLocation() {
       (err) => { console.warn('geo denied', err && err.message); resolve(null); },
       { timeout: 8000, maximumAge: 600000 }
     );
+  });
+}
+
+// ---------- distance-based pin colors ----------
+const DIST_COLORS = [
+  { max: 10, color: '#10b981', label: '< 10 mi' },   // green
+  { max: 25, color: '#3b82f6', label: '10–25 mi' },   // blue
+  { max: 50, color: '#f59e0b', label: '25–50 mi' },   // amber
+  { max: Infinity, color: '#ef4444', label: '50+ mi' } // red
+];
+
+function distColor(miles) {
+  if (miles == null) return '#94a3b8'; // gray for unknown
+  for (const band of DIST_COLORS) {
+    if (miles <= band.max) return band.color;
+  }
+  return '#94a3b8';
+}
+
+function makeRaceIcon(color, highlighted) {
+  const size = highlighted ? 18 : 14;
+  const border = highlighted ? '3px solid #0f172a' : '2px solid white';
+  const shadow = highlighted
+    ? `0 0 0 3px ${color}, 0 0 12px ${color}`
+    : `0 1px 3px rgba(0,0,0,0.3)`;
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background:${color};border:${border};
+      box-shadow:${shadow};
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
   });
 }
 
@@ -133,16 +172,23 @@ function renderList(races) {
     list.innerHTML = '<p class="empty">No races found nearby. Try a larger radius or different zip.</p>';
     return;
   }
-  const html = races.map((race) => {
+
+  // Legend
+  const legendHtml = `<div class="legend">${DIST_COLORS.map((b) =>
+    `<span class="legend-item"><span class="dist-dot" style="background:${b.color}"></span>${b.label}</span>`
+  ).join('')}</div>`;
+
+  const cardsHtml = races.map((race) => {
     const date = parseUSDate(race.next_date);
     const dateStr = formatNiceDate(date) || race.next_date || 'Date TBD';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
-    const dist = race._latlon && userLatLon ? haversineMiles(userLatLon, race._latlon) : null;
+    const dist = race._distance;
     const distStr = dist != null ? `${dist.toFixed(1)} mi away` : '(location unknown)';
+    const color = distColor(dist);
     const open = race.is_registration_open === 'T';
     return `
       <div class="race-card" data-race-id="${race.race_id}">
-        <h3 class="race-name">${escapeHtml(race.name || 'Unnamed race')}</h3>
+        <h3 class="race-name"><span class="dist-dot" style="background:${color}"></span>${escapeHtml(race.name || 'Unnamed race')}</h3>
         <div class="race-meta"><strong>${dateStr}</strong></div>
         <div class="race-meta">${escapeHtml(city)}</div>
         <div class="race-meta">${distStr}</div>
@@ -154,13 +200,27 @@ function renderList(races) {
       </div>
     `;
   }).join('');
-  list.innerHTML = html;
+  list.innerHTML = legendHtml + cardsHtml;
 
   list.querySelectorAll('.race-card').forEach((card) => {
     card.addEventListener('click', (e) => {
       if (e.target.tagName === 'A') return;
       const id = parseInt(card.dataset.raceId);
       focusRace(id);
+    });
+    card.addEventListener('mouseenter', () => {
+      const race = racesById[parseInt(card.dataset.raceId)];
+      if (race && race._marker) {
+        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', true));
+        race._marker.setZIndexOffset(900);
+      }
+    });
+    card.addEventListener('mouseleave', () => {
+      const race = racesById[parseInt(card.dataset.raceId)];
+      if (race && race._marker) {
+        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', false));
+        race._marker.setZIndexOffset(0);
+      }
     });
   });
 }
@@ -173,6 +233,7 @@ function escapeHtml(s) {
 }
 
 let racesById = {};
+let allRaces = []; // full unfiltered list for re-filtering
 
 function focusRace(raceId) {
   const race = racesById[raceId];
@@ -199,7 +260,27 @@ function plotRaces(races) {
     if (!ll) return;
     const date = parseUSDate(race.next_date);
     const dateStr = formatNiceDate(date) || race.next_date || '';
+    const shortDateStr = formatShortDate(date) || '';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
+    const dist = race._distance;
+    const distStr = dist != null ? `${dist.toFixed(1)} mi` : '';
+    const color = distColor(dist);
+
+    const icon = makeRaceIcon(color, false);
+    const marker = L.marker(ll, { icon }).addTo(map);
+
+    // Permanent tooltip with date + distance
+    const tooltipParts = [shortDateStr, distStr].filter(Boolean).join(' · ');
+    if (tooltipParts) {
+      marker.bindTooltip(tooltipParts, {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -10],
+        className: 'race-tooltip'
+      });
+    }
+
+    // Click popup with full details
     const popupHtml = `
       <div>
         <p class="popup-name">${escapeHtml(race.name)}</p>
@@ -208,13 +289,15 @@ function plotRaces(races) {
         <p class="popup-meta"><a href="${race.url}" target="_blank" rel="noopener">Race page →</a></p>
       </div>
     `;
-    const marker = L.marker(ll).addTo(map).bindPopup(popupHtml);
+    marker.bindPopup(popupHtml);
+
     marker.on('click', () => {
       document.querySelectorAll('.race-card').forEach((c) => c.classList.toggle('active', parseInt(c.dataset.raceId) === race.race_id));
       const card = document.querySelector(`.race-card[data-race-id="${race.race_id}"]`);
       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     race._marker = marker;
+    race._color = color;
     raceMarkers.push(marker);
   });
 
@@ -270,6 +353,7 @@ async function loadAndRender() {
 
     renderList(races);
     plotRaces(races);
+    allRaces = races;
     setStatus(`${races.length} races`);
   } catch (e) {
     console.error(e);
@@ -280,6 +364,29 @@ async function loadAndRender() {
   }
 }
 
+function applyFilters() {
+  const search = ($('#filter-search').value || '').toLowerCase().trim();
+  const maxDist = $('#filter-distance').value ? parseFloat($('#filter-distance').value) : null;
+  const endDateStr = $('#filter-date-end').value;
+  const endDate = endDateStr ? new Date(endDateStr + 'T23:59:59') : null;
+  const openOnly = $('#filter-open-only').checked;
+
+  const filtered = allRaces.filter((race) => {
+    if (search && !(race.name || '').toLowerCase().includes(search)) return false;
+    if (maxDist != null && (race._distance == null || race._distance > maxDist)) return false;
+    if (endDate) {
+      const d = parseUSDate(race.next_date);
+      if (d && d > endDate) return false;
+    }
+    if (openOnly && race.is_registration_open !== 'T') return false;
+    return true;
+  });
+
+  renderList(filtered);
+  plotRaces(filtered);
+  setStatus(`${filtered.length} of ${allRaces.length} races`);
+}
+
 // ---------- bootstrap ----------
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
@@ -288,5 +395,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') { userLatLon = null; loadAndRender(); }
   });
   $('#sidebar-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+
+  // Filter listeners
+  $('#filter-search').addEventListener('input', applyFilters);
+  $('#filter-distance').addEventListener('change', applyFilters);
+  $('#filter-date-end').addEventListener('change', applyFilters);
+  $('#filter-open-only').addEventListener('change', applyFilters);
+
   loadAndRender();
 });

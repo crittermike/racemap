@@ -33,6 +33,27 @@
   <main>
     <div id="map"></div>
     <aside id="sidebar">
+      <div id="filters">
+        <div class="filter-row">
+          <label>Search <input id="filter-search" type="text" placeholder="Race name..." /></label>
+        </div>
+        <div class="filter-row">
+          <label>Distance
+            <select id="filter-distance">
+              <option value="">Any</option>
+              <option value="10">≤ 10 mi</option>
+              <option value="25">≤ 25 mi</option>
+              <option value="50">≤ 50 mi</option>
+            </select>
+          </label>
+          <label>Until
+            <input id="filter-date-end" type="date" />
+          </label>
+        </div>
+        <div class="filter-row">
+          <label><input id="filter-open-only" type="checkbox" /> Open registration only</label>
+        </div>
+      </div>
       <div id="race-list"><p class="empty">Loading...</p></div>
     </aside>
   </main>
