@@ -509,7 +509,7 @@ function plotRaces(races) {
 }
 
 async function loadAndRender() {
-  const zip = $('#zip-input').value.trim() || DEFAULT_ZIP;
+  const zip = $('#zip-input').value.trim();
   const radius = $('#radius-select').value;
 
   // Save preferences
@@ -522,20 +522,34 @@ async function loadAndRender() {
     // Ensure zip lookup is loaded
     await loadZipLookup();
 
-    // Resolve user location: prefer geolocation, else look up the zip
+    // Resolve user location for the map marker and distance calculations
     if (!userLatLon) {
       setStatus('Getting your location...');
       userLatLon = await getUserLocation();
     }
-    if (!userLatLon) {
-      userLatLon = lookupZip(zip) || DEFAULT_LATLON;
+
+    // Determine how to search the API:
+    // - If user entered a zip, always use it for the API (most reliable)
+    // - If no zip but we have geolocation, use lat/lon for the API
+    let apiLatLon = null;
+    if (zip) {
+      // Use zip for API; set user marker to zip location if no geolocation
+      if (!userLatLon) {
+        userLatLon = lookupZip(zip) || DEFAULT_LATLON;
+      }
+    } else {
+      // No zip entered — use geolocation
+      if (userLatLon) {
+        apiLatLon = userLatLon;
+      } else {
+        userLatLon = DEFAULT_LATLON;
+      }
     }
+
     setUserMarker(userLatLon);
     map.setView(userLatLon, 10);
 
-    // Use lat/lon for API if we have precise geolocation, else use zip
-    const useLatLon = userLatLon ? userLatLon : null;
-    const races = await fetchRaces(zip, radius, useLatLon);
+    const races = await fetchRaces(zip || DEFAULT_ZIP, radius, apiLatLon);
     // Sort by date
     races.sort((a, b) => {
       const da = parseUSDate(a.next_date); const db = parseUSDate(b.next_date);
@@ -696,9 +710,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prefs.radius) $('#radius-select').value = prefs.radius;
   }
 
-  $('#refresh-btn').addEventListener('click', () => { userLatLon = null; loadAndRender(); });
+  $('#refresh-btn').addEventListener('click', () => { loadAndRender(); });
   $('#zip-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { userLatLon = null; loadAndRender(); }
+    if (e.key === 'Enter') loadAndRender();
+  });
+  $('#use-location-btn').addEventListener('click', async () => {
+    const btn = $('#use-location-btn');
+    btn.disabled = true;
+    btn.textContent = 'Locating...';
+    userLatLon = await getUserLocation();
+    if (userLatLon) {
+      $('#zip-input').value = '';
+      loadAndRender();
+    } else {
+      btn.textContent = 'Location unavailable';
+      setTimeout(() => { btn.textContent = '📍 Use my location'; btn.disabled = false; }, 2000);
+    }
   });
   $('#sidebar-toggle').addEventListener('click', () => {
     const sb = $('#sidebar');
