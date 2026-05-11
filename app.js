@@ -106,11 +106,17 @@ async function photonGeocode(query) {
   return [lat, lon];
 }
 
+let _refining = false;
+
 async function refineRaceLocations() {
+  if (_refining) return;
+  _refining = true;
   const btn = $('#refine-btn');
-  if (!btn) return;
-  btn.disabled = true;
-  btn.textContent = 'Refining...';
+  if (btn) {
+    btn.style.display = '';
+    btn.disabled = true;
+    btn.textContent = 'Refining...';
+  }
 
   // Only refine currently filtered/displayed races that still use ZIP-level coords
   const toRefine = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
@@ -133,12 +139,14 @@ async function refineRaceLocations() {
         console.warn('Photon geocode failed for', race.name, e);
       }
     }));
-    btn.textContent = `Refining... ${Math.min(i + BATCH_SIZE, total)}/${total}`;
+    if (btn) btn.textContent = `Refining... ${Math.min(i + BATCH_SIZE, total)}/${total}`;
     // Small delay between batches to be polite to the free API
     if (i + BATCH_SIZE < toRefine.length) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }
+
+  _refining = false;
 
   // Recompute distances and re-render
   allRaces.forEach((r) => {
@@ -146,13 +154,14 @@ async function refineRaceLocations() {
   });
   applyFilters();
 
-  btn.textContent = `📍 Refine Locations${refined ? ` (${refined} updated)` : ''}`;
-  btn.disabled = false;
-  // If everything is refined, hide the button
-  const remaining = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
-  if (remaining === 0) {
-    btn.textContent = '✓ All locations refined';
-    btn.disabled = true;
+  if (btn) {
+    const remaining = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
+    if (remaining === 0) {
+      btn.style.display = 'none';
+    } else {
+      btn.textContent = `📍 Refine ${remaining} Locations`;
+      btn.disabled = false;
+    }
   }
 }
 
@@ -616,6 +625,18 @@ function applyFilters() {
   plotRaces(filtered);
   setStatus(`${filtered.length} of ${allRaces.length} races`);
   updateHash();
+
+  // Auto-refine if ≤20 filtered races have ZIP-only locations
+  const needsRefine = filtered.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
+  const btn = $('#refine-btn');
+  if (needsRefine.length > 0 && needsRefine.length <= 20) {
+    if (btn) btn.style.display = 'none';
+    refineRaceLocations();
+  } else if (btn) {
+    btn.style.display = needsRefine.length > 0 ? '' : 'none';
+    btn.textContent = `📍 Refine ${needsRefine.length} Locations`;
+    btn.disabled = false;
+  }
 }
 
 // ---------- bootstrap ----------
