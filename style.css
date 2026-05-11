@@ -189,15 +189,6 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   border-bottom: 1px solid #334155;
 }
 
-/* MarkerCluster overrides for cleaner look */
-.marker-cluster-small { background: rgba(16,185,129,0.3); }
-.marker-cluster-small div { background: #10b981; color: white; }
-.marker-cluster-medium { background: rgba(59,130,246,0.3); }
-.marker-cluster-medium div { background: #3b82f6; color: white; }
-.marker-cluster-large { background: rgba(239,68,68,0.3); }
-.marker-cluster-large div { background: #ef4444; color: white; }
-.marker-cluster div { width: 32px; height: 32px; margin: 4px; border-radius: 50%; font-size: 13px; font-weight: 700; text-align: center; line-height: 32px; }
-
 .popup-name { font-weight: 700; font-size: 14px; margin: 0 0 4px; }
 .popup-meta { font-size: 12px; color: #475569; margin: 2px 0; }
 .popup-meta a { color: #3b82f6; }

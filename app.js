@@ -271,12 +271,12 @@ function setUserMarker(latlon) {
   });
 }
 
-let clusterGroup = null;
+let markerGroup = null;
 
 function clearRaceMarkers() {
-  if (clusterGroup) {
-    map.removeLayer(clusterGroup);
-    clusterGroup = null;
+  if (markerGroup) {
+    map.removeLayer(markerGroup);
+    markerGroup = null;
   }
   raceMarkers = [];
 }
@@ -450,12 +450,7 @@ function plotRaces(races) {
   racesById = {};
   let jitterIdx = 0;
 
-  clusterGroup = L.markerClusterGroup({
-    maxClusterRadius: 40,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-    disableClusteringAtZoom: 13
-  });
+  markerGroup = L.layerGroup();
 
   // Count how many races share each lat/lon so we can spread them out
   const locCounts = {};
@@ -538,11 +533,11 @@ function plotRaces(races) {
     });
     race._marker = marker;
     race._color = color;
-    clusterGroup.addLayer(marker);
+    markerGroup.addLayer(marker);
     raceMarkers.push(marker);
   });
 
-  map.addLayer(clusterGroup);
+  map.addLayer(markerGroup);
 
   // Fit bounds if we have markers
   const ptsWithLoc = races.filter((r) => r._latlon).map((r) => r._latlon);
