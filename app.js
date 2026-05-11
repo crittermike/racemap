@@ -697,11 +697,11 @@ function applyFilters() {
 
   const filtered = allRaces.filter((race) => {
     if (search && !(race.name || '').toLowerCase().includes(search)) return false;
-    // Filter by race distance (5K, 10K, etc.) in miles
-    const rd = raceDistMiles(race);
-    if (rd != null) {
-      if (rd < distMin || rd > distMax) return false;
-    } else if (distMax < 100) {
+    // Filter by race distance — show race if ANY of its distances fall in range
+    const allDists = (race._distances || []).map(parseRaceDistMiles).filter((d) => d != null);
+    if (allDists.length > 0) {
+      if (!allDists.some((d) => d >= distMin && d <= distMax)) return false;
+    } else if (distMax < 100 || distMin > 0) {
       return false; // hide unknown-distance races when filtering
     }
     if (endDate) {
