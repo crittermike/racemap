@@ -486,7 +486,7 @@ function plotRaces(races) {
     const icon = makeRaceIcon(color, false);
     const marker = L.marker(ll, { icon });
 
-    const raceDistLabel = race._distances.length ? race._distances[0] : '';
+    const raceDistLabel = race._distances.length ? race._distances.join(', ') : '';
 
     // Permanent tooltip with date + race distance
     const tooltipParts = [shortDateStr, raceDistLabel].filter(Boolean).join(' · ');
