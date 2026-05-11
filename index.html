@@ -18,41 +18,41 @@
     <div id="map"></div>
     <aside id="sidebar">
       <div id="filters">
-        <div class="filter-row">
-          <label>Zip <input id="zip-input" type="text" inputmode="numeric" maxlength="5" value="29601" /></label>
-          <label>Radius
+        <div class="filter-group">
+          <div class="filter-row">
+            <input id="zip-input" type="text" inputmode="numeric" maxlength="5" value="29601" placeholder="Zip" />
             <select id="radius-select">
               <option value="10">10 mi</option>
               <option value="25">25 mi</option>
               <option value="50" selected>50 mi</option>
               <option value="100">100 mi</option>
             </select>
-          </label>
-          <button id="refresh-btn" type="button">Search</button>
+            <button id="refresh-btn" type="button">Search</button>
+          </div>
         </div>
-        <div class="filter-row">
-          <label>Search <input id="filter-search" type="text" placeholder="Race name..." /></label>
+        <div class="filter-group">
+          <input id="filter-search" type="text" placeholder="Filter by name..." class="filter-full" />
         </div>
-        <div class="filter-row">
-          <label>Distance</label>
-          <span id="dist-label" class="filter-value">0 – 100 mi</span>
+        <div class="filter-group">
+          <div class="filter-row filter-row-spread">
+            <span class="filter-label">Distance</span>
+            <span id="dist-label" class="filter-value">0 – 100 mi</span>
+          </div>
+          <div class="slider-row">
+            <input id="filter-dist-min" type="range" min="0" max="100" value="0" step="5" />
+            <input id="filter-dist-max" type="range" min="0" max="100" value="100" step="5" />
+          </div>
         </div>
-        <div class="filter-row slider-row">
-          <input id="filter-dist-min" type="range" min="0" max="100" value="0" step="5" />
-          <input id="filter-dist-max" type="range" min="0" max="100" value="100" step="5" />
-        </div>
-        <div class="filter-row">
-          <label>When
+        <div class="filter-group">
+          <div class="filter-row">
             <select id="filter-date">
-              <option value="">Anytime</option>
-              <option value="1">Next month</option>
-              <option value="3">Next 3 months</option>
-              <option value="6">Next 6 months</option>
+              <option value="">When: Anytime</option>
+              <option value="1">When: Next month</option>
+              <option value="3">When: Next 3 months</option>
+              <option value="6">When: Next 6 months</option>
             </select>
-          </label>
-          <label>Type
             <select id="filter-type">
-              <option value="">All types</option>
+              <option value="">Type: All</option>
               <option value="running_race">Running race</option>
               <option value="trail_race">Trail race</option>
               <option value="ultra">Ultra</option>
@@ -60,13 +60,15 @@
               <option value="duathlon">Duathlon</option>
               <option value="swim">Swim</option>
               <option value="virtual_race">Virtual</option>
-              <option value="nonprofit_event">Nonprofit event</option>
+              <option value="nonprofit_event">Nonprofit</option>
               <option value="other">Other</option>
             </select>
-          </label>
+          </div>
         </div>
-        <div class="filter-row">
-          <label><input id="filter-medal" type="checkbox" /> Has medal/award</label>
+        <div class="filter-group">
+          <label class="filter-check">
+            <input id="filter-medal" type="checkbox" /> Has medal / award
+          </label>
         </div>
       </div>
       <div id="race-list"><p class="empty">Loading...</p></div>
