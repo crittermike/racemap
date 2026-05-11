@@ -141,9 +141,9 @@ function jitter(latlon, i) {
 // ---------- main flow ----------
 async function fetchRaces(zip, radius) {
   const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T`;
-  // RunSignup does not send CORS headers, so route through a public CORS proxy.
-  // Swap to your own Cloudflare Worker if this proxy disappears.
-  const url = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+  // RunSignup blocks browser CORS, so route through a public proxy.
+  // codetabs follows redirects and works without auth.
+  const url = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error('API error ' + r.status);
   const data = await r.json();
