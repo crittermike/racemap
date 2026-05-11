@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RaceMap - Find Nearby Running Races</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">🏃 RaceMap</div>
+    <div class="controls">
+      <label>
+        Zip
+        <input id="zip-input" type="text" inputmode="numeric" maxlength="5" value="29601" />
+      </label>
+      <label>
+        Radius
+        <select id="radius-select">
+          <option value="10">10 mi</option>
+          <option value="25">25 mi</option>
+          <option value="50" selected>50 mi</option>
+          <option value="100">100 mi</option>
+        </select>
+      </label>
+      <button id="refresh-btn" type="button">Refresh</button>
+      <span id="status" class="status"></span>
+    </div>
+    <button id="sidebar-toggle" type="button" aria-label="Toggle list">☰</button>
+  </header>
+  <main>
+    <div id="map"></div>
+    <aside id="sidebar">
+      <div id="race-list"><p class="empty">Loading...</p></div>
+    </aside>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
