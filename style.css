@@ -36,6 +36,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .filter-group {
   padding: 8px 12px;
   border-bottom: 1px solid #e9ecf1;
+  overflow: visible;
 }
 .filter-group:last-child { border-bottom: none; }
 
@@ -90,6 +91,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   position: relative;
   height: 22px;
   margin-top: 4px;
+  z-index: 1;
 }
 .slider-row input[type="range"] {
   position: absolute;
@@ -113,6 +115,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   cursor: pointer;
   pointer-events: auto;
   margin-top: -6px;
+  position: relative;
+  z-index: 2;
 }
 .slider-row input[type="range"]::-moz-range-thumb {
   width: 16px; height: 16px;
