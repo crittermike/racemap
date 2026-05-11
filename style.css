@@ -84,12 +84,12 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #refresh-btn:disabled { background: #94a3b8; cursor: not-allowed; }
 
 .use-location-btn {
-  width: 100%; padding: 5px 0; margin-top: 4px;
-  background: none; border: none; color: #3b82f6;
-  font-size: 12px; font-weight: 600; cursor: pointer;
-  text-align: center;
+  display: inline; padding: 0; margin: 0;
+  background: none; border: none; color: #64748b;
+  font-size: 11px; font-weight: 500; cursor: pointer;
+  text-align: right; float: right; margin-top: 4px;
 }
-.use-location-btn:hover { color: #2563eb; text-decoration: underline; }
+.use-location-btn:hover { color: #3b82f6; text-decoration: underline; }
 
 /* Dropdowns in filter row share space equally */
 .filter-group .filter-row select { flex: 1; min-width: 0; }
@@ -168,11 +168,9 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #clear-filters-btn:hover { background: #eff6ff; }
 
 /* Race count badge */
-#race-count { padding: 6px 12px; }
+#race-count { padding: 4px 12px 0; }
 .race-count-badge {
-  display: inline-block; padding: 3px 10px;
-  background: #e0f2fe; color: #0369a1;
-  border-radius: 12px; font-size: 12px; font-weight: 700;
+  font-size: 11px; font-weight: 600; color: #64748b;
 }
 
 /* Refine locations button */
@@ -240,7 +238,26 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   border-bottom: 1px solid #e2e8f0;
   font-size: 11px; color: #64748b;
 }
-.legend-item { display: flex; align-items: center; gap: 3px; }
+.legend-item {
+  display: flex; align-items: center; gap: 3px;
+  cursor: pointer; padding: 2px 6px; border-radius: 4px;
+  transition: background 0.15s;
+}
+.legend-item:hover { background: #f1f5f9; }
+
+/* Refining overlay */
+#refine-overlay {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 24px 12px;
+  color: #64748b; font-size: 13px; font-weight: 500;
+}
+.refine-spinner {
+  width: 16px; height: 16px; border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#race-list.refining { display: none; }
 
 .user-marker {
   background: #3b82f6; border: 3px solid white; border-radius: 50%;

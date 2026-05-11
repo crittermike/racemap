@@ -189,8 +189,8 @@ function getUserLocation() {
 
 // ---------- distance-based pin colors ----------
 const DIST_COLORS = [
-  { max: 3.2, color: '#10b981', label: '5K' },          // green
-  { max: 6.3, color: '#06b6d4', label: '10K' },          // cyan
+  { max: 3.2, color: '#f59e0b', label: '5K' },          // amber
+  { max: 6.3, color: '#10b981', label: '10K' },          // green
   { max: 13.2, color: '#3b82f6', label: 'Half' },        // blue
   { max: 26.3, color: '#8b5cf6', label: 'Marathon' },     // purple
   { max: Infinity, color: '#ef4444', label: 'Ultra' }     // red
@@ -336,9 +336,9 @@ function renderList(races) {
 
   countEl.innerHTML = `<span class="race-count-badge">${races.length} race${races.length === 1 ? '' : 's'}</span>`;
 
-  // Legend
-  const legendHtml = `<div class="legend">${DIST_COLORS.map((b) =>
-    `<span class="legend-item"><span class="dist-dot" style="background:${b.color}"></span>${b.label}</span>`
+  // Legend with hoverable items for filtering
+  const legendHtml = `<div class="legend" id="legend">${DIST_COLORS.map((b) =>
+    `<span class="legend-item" data-dist-label="${b.label}" data-dist-max="${b.max}"><span class="dist-dot" style="background:${b.color}"></span>${b.label}</span>`
   ).join('')}</div>`;
 
   const cardsHtml = races.map((race) => {
@@ -385,6 +385,39 @@ function renderList(races) {
         race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', false));
         race._marker.setZIndexOffset(0);
       }
+    });
+  });
+
+  // Legend hover: highlight only races of that distance category
+  list.querySelectorAll('.legend-item').forEach((item) => {
+    item.addEventListener('mouseenter', () => {
+      const label = item.dataset.distLabel;
+      const band = DIST_COLORS.find((b) => b.label === label);
+      if (!band) return;
+      filteredRaces.forEach((race) => {
+        if (!race._marker) return;
+        const miles = raceDistMiles(race);
+        const raceLabel = miles != null ? DIST_COLORS.find((b) => miles <= b.max)?.label : null;
+        if (raceLabel === label) {
+          race._marker.setIcon(makeRaceIcon(band.color, true));
+          race._marker.setZIndexOffset(900);
+        } else {
+          race._marker.setOpacity(0.15);
+        }
+        // Dim/highlight cards
+        const card = document.querySelector(`.race-card[data-race-id="${race.race_id}"]`);
+        if (card) card.style.opacity = raceLabel === label ? '1' : '0.3';
+      });
+    });
+    item.addEventListener('mouseleave', () => {
+      filteredRaces.forEach((race) => {
+        if (!race._marker) return;
+        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', false));
+        race._marker.setZIndexOffset(0);
+        race._marker.setOpacity(1);
+        const card = document.querySelector(`.race-card[data-race-id="${race.race_id}"]`);
+        if (card) card.style.opacity = '1';
+      });
     });
   });
 }
@@ -698,7 +731,19 @@ function applyFilters() {
   const btn = $('#refine-btn');
   if (needsRefine.length > 0 && needsRefine.length <= 50) {
     if (btn) { btn.style.display = 'none'; btn.classList.remove('refine-hint'); }
-    refineRaceLocations();
+    // Show refining overlay — hide race list and map markers until done
+    const list = $('#race-list');
+    list.classList.add('refining');
+    const overlay = document.createElement('div');
+    overlay.id = 'refine-overlay';
+    overlay.innerHTML = '<div class="refine-spinner"></div><span>Refining locations…</span>';
+    list.parentNode.insertBefore(overlay, list);
+    clearRaceMarkers();
+    refineRaceLocations().then(() => {
+      const ov = $('#refine-overlay');
+      if (ov) ov.remove();
+      list.classList.remove('refining');
+    });
   } else if (btn) {
     if (needsRefine.length > 50) {
       btn.style.display = '';
@@ -731,18 +776,18 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#use-location-btn').addEventListener('click', async () => {
     const btn = $('#use-location-btn');
     btn.disabled = true;
-    btn.textContent = 'Locating...';
+    btn.textContent = 'locating...';
     userLatLon = null; // force re-fetch
     const loc = await getUserLocation();
-    btn.textContent = '📍 Use my location';
+    btn.textContent = 'or use my location';
     btn.disabled = false;
     if (loc) {
       userLatLon = loc;
       $('#zip-input').value = '';
       loadAndRender();
     } else {
-      btn.textContent = '⚠️ Location unavailable';
-      setTimeout(() => { btn.textContent = '📍 Use my location'; }, 2000);
+      btn.textContent = '⚠️ location unavailable';
+      setTimeout(() => { btn.textContent = 'or use my location'; }, 2000);
     }
   });
   $('#sidebar-toggle').addEventListener('click', () => {
