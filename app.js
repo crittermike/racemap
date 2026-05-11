@@ -81,7 +81,79 @@ function geocodeRaces(races) {
   races.forEach((race) => {
     const zip = race.address && race.address.zipcode;
     race._latlon = lookupZip(zip);
+    race._latlonSource = 'zip'; // track precision level
   });
+}
+
+// ---------- Photon address geocoding (free, CORS-enabled) ----------
+function buildAddressQuery(race) {
+  const a = race.address;
+  if (!a) return null;
+  const parts = [a.street, a.city, a.state, a.zipcode].filter(Boolean);
+  return parts.length >= 2 ? parts.join(', ') : null;
+}
+
+async function photonGeocode(query) {
+  // Clean up address oddities that can confuse the geocoder
+  const cleaned = query.replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleaned)}&limit=1&lang=en`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const data = await r.json();
+  const feats = data.features;
+  if (!feats || !feats.length) return null;
+  const [lon, lat] = feats[0].geometry.coordinates;
+  return [lat, lon];
+}
+
+async function refineRaceLocations() {
+  const btn = $('#refine-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Refining...';
+
+  // Only refine currently filtered/displayed races that still use ZIP-level coords
+  const toRefine = allRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
+  let refined = 0;
+  const total = toRefine.length;
+  const BATCH_SIZE = 3; // concurrent requests to be polite
+
+  for (let i = 0; i < toRefine.length; i += BATCH_SIZE) {
+    const batch = toRefine.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (race) => {
+      const query = buildAddressQuery(race);
+      try {
+        const coords = await photonGeocode(query);
+        if (coords) {
+          race._latlon = coords;
+          race._latlonSource = 'address';
+          refined++;
+        }
+      } catch (e) {
+        console.warn('Photon geocode failed for', race.name, e);
+      }
+    }));
+    btn.textContent = `Refining... ${Math.min(i + BATCH_SIZE, total)}/${total}`;
+    // Small delay between batches to be polite to the free API
+    if (i + BATCH_SIZE < toRefine.length) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  // Recompute distances and re-render
+  allRaces.forEach((r) => {
+    r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
+  });
+  applyFilters();
+
+  btn.textContent = `📍 Refine Locations${refined ? ` (${refined} updated)` : ''}`;
+  btn.disabled = false;
+  // If everything is refined, hide the button
+  const remaining = allRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
+  if (remaining === 0) {
+    btn.textContent = '✓ All locations refined';
+    btn.disabled = true;
+  }
 }
 
 // ---------- geolocation ----------
@@ -562,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#sidebar-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
   $('#show-map-btn').addEventListener('click', () => $('#sidebar').classList.remove('open'));
+  $('#refine-btn').addEventListener('click', refineRaceLocations);
 
   // Filter listeners
   $('#filter-search').addEventListener('input', applyFilters);
