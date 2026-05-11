@@ -651,7 +651,7 @@ function updateHash() {
   const zip = $('#zip-input').value.trim();
   const radius = $('#radius-select').value;
   if (zip) params.set('zip', zip);
-  if (radius !== '50') params.set('radius', radius);
+  if (radius !== '25') params.set('radius', radius);
   const search = $('#filter-search').value.trim();
   if (search) params.set('q', search);
   const distMin = $('#filter-dist-min').value;

@@ -25,8 +25,8 @@
             <input id="zip-input" type="text" inputmode="numeric" maxlength="5" value="29601" placeholder="Zip" />
             <select id="radius-select">
               <option value="10">10 mi</option>
-              <option value="25">25 mi</option>
-              <option value="50" selected>50 mi</option>
+              <option value="25" selected>25 mi</option>
+              <option value="50">50 mi</option>
               <option value="100">100 mi</option>
             </select>
             <button id="refresh-btn" type="button">Search</button>
@@ -52,7 +52,7 @@
               <option value="">When: Anytime</option>
               <option value="1">When: Next month</option>
               <option value="3">When: Next 3 months</option>
-              <option value="6">When: Next 6 months</option>
+              <option value="6" selected>When: Next 6 months</option>
             </select>
             <select id="filter-type">
               <option value="">Type: All</option>
@@ -80,6 +80,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
