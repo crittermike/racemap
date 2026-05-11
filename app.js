@@ -656,16 +656,22 @@ function applyFilters() {
   setStatus(`${filtered.length} of ${allRaces.length} races`);
   updateHash();
 
-  // Auto-refine if ≤20 filtered races have ZIP-only locations
+  // Auto-refine if ≤50 filtered races have ZIP-only locations
   const needsRefine = filtered.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
   const btn = $('#refine-btn');
-  if (needsRefine.length > 0 && needsRefine.length <= 20) {
-    if (btn) btn.style.display = 'none';
+  if (needsRefine.length > 0 && needsRefine.length <= 50) {
+    if (btn) { btn.style.display = 'none'; btn.classList.remove('refine-hint'); }
     refineRaceLocations();
   } else if (btn) {
-    btn.style.display = needsRefine.length > 0 ? '' : 'none';
-    btn.textContent = `📍 Refine ${needsRefine.length} Locations`;
-    btn.disabled = false;
+    if (needsRefine.length > 50) {
+      btn.style.display = '';
+      btn.classList.add('refine-hint');
+      btn.disabled = true;
+      btn.textContent = `📍 Filter to ≤50 races for precise locations`;
+    } else {
+      btn.style.display = 'none';
+      btn.classList.remove('refine-hint');
+    }
   }
 }
 
