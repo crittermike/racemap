@@ -3,14 +3,13 @@
 
 const DEFAULT_ZIP = '29601';
 const DEFAULT_LATLON = [34.8526, -82.3940]; // Greenville SC fallback
-const GEOCODE_CACHE_KEY = 'racemap.geocache.v1';
-const NOMINATIM_DELAY_MS = 1100; // be polite
 
 let map;
 let userMarker = null;
 let raceMarkers = [];
 let userLatLon = null;
 let activeCardId = null;
+let zipLookup = null; // loaded from zipcodes.json
 
 // ---------- utilities ----------
 function $(sel) { return document.querySelector(sel); }
@@ -52,51 +51,23 @@ function formatNiceDate(d) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-// ---------- geocode cache ----------
-function loadCache() {
-  try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); }
-  catch { return {}; }
-}
-function saveCache(cache) {
-  try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); }
-  catch (e) { console.warn('cache save failed', e); }
+// ---------- zip code lookup (static JSON) ----------
+async function loadZipLookup() {
+  if (zipLookup) return;
+  const r = await fetch('zipcodes.json');
+  zipLookup = await r.json();
 }
 
-const geoCache = loadCache();
-
-async function geocodeZip(zip) {
-  if (!zip) return null;
-  if (geoCache[zip]) return geoCache[zip];
-  const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(zip)}&country=US&limit=1`;
-  try {
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    const data = await r.json();
-    if (data && data[0]) {
-      const ll = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-      geoCache[zip] = ll;
-      saveCache(geoCache);
-      return ll;
-    }
-  } catch (e) {
-    console.warn('geocode error', zip, e);
-  }
-  return null;
+function lookupZip(zip) {
+  if (!zip || !zipLookup) return null;
+  return zipLookup[zip] || null;
 }
 
-// Sequential geocode queue (1 req/sec)
-async function geocodeRacesSequential(races, onProgress) {
-  for (let i = 0; i < races.length; i++) {
-    const race = races[i];
+function geocodeRaces(races) {
+  races.forEach((race) => {
     const zip = race.address && race.address.zipcode;
-    if (!zip) { race._latlon = null; continue; }
-    if (geoCache[zip]) {
-      race._latlon = geoCache[zip];
-      continue;
-    }
-    if (onProgress) onProgress(i + 1, races.length);
-    race._latlon = await geocodeZip(zip);
-    await new Promise((res) => setTimeout(res, NOMINATIM_DELAY_MS));
-  }
+    race._latlon = lookupZip(zip);
+  });
 }
 
 // ---------- geolocation ----------
@@ -264,13 +235,15 @@ async function loadAndRender() {
   setStatus('Fetching races...');
   $('#race-list').innerHTML = '<p class="empty">Loading...</p>';
   try {
-    // Resolve user location: prefer geolocation, else geocode the zip
+    // Ensure zip lookup is loaded
+    await loadZipLookup();
+
+    // Resolve user location: prefer geolocation, else look up the zip
     if (!userLatLon) {
       userLatLon = await getUserLocation();
     }
     if (!userLatLon) {
-      setStatus('Geocoding zip...');
-      userLatLon = (await geocodeZip(zip)) || DEFAULT_LATLON;
+      userLatLon = lookupZip(zip) || DEFAULT_LATLON;
     }
     setUserMarker(userLatLon);
     map.setView(userLatLon, 10);
@@ -283,11 +256,12 @@ async function loadAndRender() {
       return da - db;
     });
 
-    setStatus(`Found ${races.length} races. Geocoding...`);
+    setStatus(`Found ${races.length} races.`);
     // Strip descriptions up front
     races.forEach((r) => { r._desc = stripHtml(r.description); });
 
-    await geocodeRacesSequential(races, (i, n) => setStatus(`Geocoding ${i}/${n}...`));
+    // Look up coordinates instantly from static zip table
+    geocodeRaces(races);
 
     // Compute distances
     races.forEach((r) => {

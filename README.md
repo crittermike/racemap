@@ -5,7 +5,7 @@ A static, no-build proof-of-concept that shows nearby running races on a Leaflet
 ## What it is
 - Plain HTML + CSS + vanilla JS. No frameworks, no build step.
 - Leaflet + OpenStreetMap tiles (no API key).
-- Geocoding via Nominatim (OSM) with localStorage caching, rate-limited to 1 req/sec.
+- ZIP→lat/lon via a bundled static lookup (~42K US zips, ~1MB). No external geocoding calls needed.
 - Geolocation via the browser; falls back to geocoding the zip in the input (default `29601`, Greenville SC).
 
 ## Run locally
@@ -18,14 +18,13 @@ python3 -m http.server 8000
 That's it. Any static file server works (the file:// protocol won't because of CORS for the API requests).
 
 ## How it works
-1. Tries `navigator.geolocation` for your position. If denied, geocodes the zip.
+1. Tries `navigator.geolocation` for your position. If denied, looks up the zip from the bundled table.
 2. Calls `https://runsignup.com/Rest/races` with `zipcode`, `radius`, today's date, and `events=T`.
-3. The API doesn't return lat/lon, so each unique race zip is geocoded via Nominatim and cached in localStorage.
+3. The API doesn't return lat/lon, so each race zip is resolved instantly from `zipcodes.json` (a static ~42K entry lookup table).
 4. Markers are dropped on the map; the sidebar shows a sortable-by-date list with city, distance (Haversine), and a Register link.
 5. Click a sidebar card to fly the map to that pin and open the popup. Click a marker to highlight the card.
 
 ## Known limitations
-- **Nominatim rate limit (1 req/sec)** means a fresh load of 50 races can take ~50s. Subsequent loads are instant thanks to localStorage caching.
 - **Zip-based geocoding** = pins land at the centroid of the race's zip code, not the actual venue.
 - Races whose zip fails to geocode are still shown in the sidebar with "(location unknown)" and plotted near the user with a small jitter so they're visible.
 - No filtering UI yet (event type, distance, date range).
