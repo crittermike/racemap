@@ -133,9 +133,9 @@ function makeRaceIcon(color, highlighted) {
 // ---------- map ----------
 function initMap() {
   map = L.map('map').setView(DEFAULT_LATLON, 10);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
 }
 
@@ -143,11 +143,27 @@ function setUserMarker(latlon) {
   if (userMarker) map.removeLayer(userMarker);
   if (!latlon) return;
   const icon = L.divIcon({ className: '', html: '<div class="user-marker"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
-  userMarker = L.marker(latlon, { icon, zIndexOffset: 1000, title: 'You' }).addTo(map);
+  userMarker = L.marker(latlon, { icon, zIndexOffset: 1000, title: 'You — drag to refine', draggable: true }).addTo(map);
+  userMarker.bindTooltip('Drag to refine your location', { direction: 'top', offset: [0, -10] });
+  userMarker.on('dragend', () => {
+    const ll = userMarker.getLatLng();
+    userLatLon = [ll.lat, ll.lng];
+    // Recompute distances and re-render
+    allRaces.forEach((r) => {
+      r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
+    });
+    applyFilters();
+    updateHash();
+  });
 }
 
+let clusterGroup = null;
+
 function clearRaceMarkers() {
-  raceMarkers.forEach((m) => map.removeLayer(m));
+  if (clusterGroup) {
+    map.removeLayer(clusterGroup);
+    clusterGroup = null;
+  }
   raceMarkers = [];
 }
 
@@ -185,10 +201,26 @@ function enrichRace(race) {
 
 function renderList(races) {
   const list = $('#race-list');
+  const countEl = $('#race-count');
+
   if (!races.length) {
-    list.innerHTML = '<p class="empty">No races found nearby. Try a larger radius or different zip.</p>';
+    countEl.innerHTML = '';
+    const hasFilters = ($('#filter-search').value || '').trim() ||
+      parseInt($('#filter-dist-min').value) > 0 ||
+      parseInt($('#filter-dist-max').value) < 100 ||
+      $('#filter-date').value ||
+      $('#filter-type').value;
+    list.innerHTML = hasFilters
+      ? '<div class="empty">No races match your filters.<br><button id="clear-filters-btn" type="button">Clear filters</button></div>'
+      : '<p class="empty">No races found nearby. Try a larger radius or different zip.</p>';
+    if (hasFilters) {
+      const btn = $('#clear-filters-btn');
+      if (btn) btn.addEventListener('click', clearFilters);
+    }
     return;
   }
+
+  countEl.innerHTML = `<span class="race-count-badge">${races.length} race${races.length === 1 ? '' : 's'}</span>`;
 
   // Legend
   const legendHtml = `<div class="legend">${DIST_COLORS.map((b) =>
@@ -270,6 +302,13 @@ function plotRaces(races) {
   racesById = {};
   let jitterIdx = 0;
 
+  clusterGroup = L.markerClusterGroup({
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    disableClusteringAtZoom: 13
+  });
+
   // Count how many races share each lat/lon so we can spread them out
   const locCounts = {};
   races.forEach((race) => {
@@ -302,7 +341,7 @@ function plotRaces(races) {
     const color = distColor(dist);
 
     const icon = makeRaceIcon(color, false);
-    const marker = L.marker(ll, { icon }).addTo(map);
+    const marker = L.marker(ll, { icon });
 
     const raceDistLabel = race._distances.length ? race._distances[0] : '';
 
@@ -335,8 +374,11 @@ function plotRaces(races) {
     });
     race._marker = marker;
     race._color = color;
+    clusterGroup.addLayer(marker);
     raceMarkers.push(marker);
   });
+
+  map.addLayer(clusterGroup);
 
   // Fit bounds if we have markers
   const ptsWithLoc = races.filter((r) => r._latlon).map((r) => r._latlon);
@@ -412,6 +454,56 @@ function updateDistLabel() {
   $('#dist-label').textContent = `${min} – ${max} mi`;
 }
 
+function clearFilters() {
+  $('#filter-search').value = '';
+  $('#filter-dist-min').value = 0;
+  $('#filter-dist-max').value = 100;
+  $('#filter-date').value = '';
+  $('#filter-type').value = '';
+  applyFilters();
+}
+
+// ---------- URL hash sharing ----------
+function updateHash() {
+  const params = new URLSearchParams();
+  const zip = $('#zip-input').value.trim();
+  const radius = $('#radius-select').value;
+  if (zip) params.set('zip', zip);
+  if (radius !== '50') params.set('radius', radius);
+  const search = $('#filter-search').value.trim();
+  if (search) params.set('q', search);
+  const distMin = $('#filter-dist-min').value;
+  const distMax = $('#filter-dist-max').value;
+  if (distMin !== '0') params.set('dmin', distMin);
+  if (distMax !== '100') params.set('dmax', distMax);
+  const dateVal = $('#filter-date').value;
+  if (dateVal) params.set('when', dateVal);
+  const typeVal = $('#filter-type').value;
+  if (typeVal) params.set('type', typeVal);
+  if (userLatLon) {
+    params.set('lat', userLatLon[0].toFixed(4));
+    params.set('lon', userLatLon[1].toFixed(4));
+  }
+  const hash = params.toString();
+  history.replaceState(null, '', hash ? '#' + hash : location.pathname);
+}
+
+function restoreFromHash() {
+  if (!location.hash || location.hash.length < 2) return false;
+  const params = new URLSearchParams(location.hash.slice(1));
+  if (params.get('zip')) $('#zip-input').value = params.get('zip');
+  if (params.get('radius')) $('#radius-select').value = params.get('radius');
+  if (params.get('q')) $('#filter-search').value = params.get('q');
+  if (params.get('dmin')) $('#filter-dist-min').value = params.get('dmin');
+  if (params.get('dmax')) $('#filter-dist-max').value = params.get('dmax');
+  if (params.get('when')) $('#filter-date').value = params.get('when');
+  if (params.get('type')) $('#filter-type').value = params.get('type');
+  if (params.get('lat') && params.get('lon')) {
+    userLatLon = [parseFloat(params.get('lat')), parseFloat(params.get('lon'))];
+  }
+  return true;
+}
+
 function applyFilters() {
   const search = ($('#filter-search').value || '').toLowerCase().trim();
   const distMin = parseInt($('#filter-dist-min').value);
@@ -449,27 +541,31 @@ function applyFilters() {
   renderList(filtered);
   plotRaces(filtered);
   setStatus(`${filtered.length} of ${allRaces.length} races`);
+  updateHash();
 }
 
 // ---------- bootstrap ----------
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
 
-  // Restore saved preferences
-  const prefs = loadPrefs();
-  if (prefs.zip) $('#zip-input').value = prefs.zip;
-  if (prefs.radius) $('#radius-select').value = prefs.radius;
+  // Restore from URL hash first, then localStorage prefs as fallback
+  const hasHash = restoreFromHash();
+  if (!hasHash) {
+    const prefs = loadPrefs();
+    if (prefs.zip) $('#zip-input').value = prefs.zip;
+    if (prefs.radius) $('#radius-select').value = prefs.radius;
+  }
 
   $('#refresh-btn').addEventListener('click', () => { userLatLon = null; loadAndRender(); });
   $('#zip-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { userLatLon = null; loadAndRender(); }
   });
   $('#sidebar-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+  $('#show-map-btn').addEventListener('click', () => $('#sidebar').classList.remove('open'));
 
   // Filter listeners
   $('#filter-search').addEventListener('input', applyFilters);
   $('#filter-dist-min').addEventListener('input', () => {
-    // Prevent min from exceeding max
     const min = parseInt($('#filter-dist-min').value);
     const max = parseInt($('#filter-dist-max').value);
     if (min > max) $('#filter-dist-max').value = min;
@@ -483,6 +579,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#filter-date').addEventListener('change', applyFilters);
   $('#filter-type').addEventListener('change', applyFilters);
+
+  // Mobile: auto-open sidebar on load
+  if (window.innerWidth <= 768) {
+    $('#sidebar').classList.add('open');
+  }
 
   updateDistLabel();
   loadAndRender();

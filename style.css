@@ -151,7 +151,37 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .race-actions a:hover { background: #059669; }
 .race-actions .closed { background: #94a3b8; }
 
-.empty { color: #64748b; text-align: center; padding: 20px; font-size: 14px; }
+.empty { color: #64748b; text-align: center; padding: 20px; font-size: 14px; line-height: 1.6; }
+#clear-filters-btn {
+  margin-top: 8px; padding: 6px 14px; border: 1px solid #3b82f6;
+  background: white; color: #3b82f6; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 600; transition: background 0.15s;
+}
+#clear-filters-btn:hover { background: #eff6ff; }
+
+/* Race count badge */
+#race-count { padding: 6px 12px; }
+.race-count-badge {
+  display: inline-block; padding: 3px 10px;
+  background: #e0f2fe; color: #0369a1;
+  border-radius: 12px; font-size: 12px; font-weight: 700;
+}
+
+/* Mobile show-map button */
+.show-map-btn {
+  display: none; width: 100%; padding: 8px; margin-top: 8px;
+  background: #0f172a; color: white; border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* MarkerCluster overrides for cleaner look */
+.marker-cluster-small { background: rgba(16,185,129,0.3); }
+.marker-cluster-small div { background: #10b981; color: white; }
+.marker-cluster-medium { background: rgba(59,130,246,0.3); }
+.marker-cluster-medium div { background: #3b82f6; color: white; }
+.marker-cluster-large { background: rgba(239,68,68,0.3); }
+.marker-cluster-large div { background: #ef4444; color: white; }
+.marker-cluster div { width: 32px; height: 32px; margin: 4px; border-radius: 50%; font-size: 13px; font-weight: 700; text-align: center; line-height: 32px; }
 
 .popup-name { font-weight: 700; font-size: 14px; margin: 0 0 4px; }
 .popup-meta { font-size: 12px; color: #475569; margin: 2px 0; }
@@ -194,6 +224,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 
 @media (max-width: 768px) {
   #sidebar-toggle { display: block; }
+  .show-map-btn { display: block; }
   #sidebar {
     position: absolute; top: 0; right: 0; bottom: 0; width: 85%; max-width: 360px;
     transform: translateX(100%); transition: transform 0.25s ease;
