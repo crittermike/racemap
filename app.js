@@ -77,6 +77,23 @@ function lookupZip(zip) {
   return zipLookup[zip] || null;
 }
 
+// Find the nearest zip code to a given lat/lon
+function reverseZipLookup(latlon) {
+  if (!zipLookup || !latlon) return null;
+  let bestZip = null;
+  let bestDist = Infinity;
+  for (const [zip, coords] of Object.entries(zipLookup)) {
+    const dlat = coords[0] - latlon[0];
+    const dlon = coords[1] - latlon[1];
+    const d = dlat * dlat + dlon * dlon;
+    if (d < bestDist) {
+      bestDist = d;
+      bestZip = zip;
+    }
+  }
+  return bestZip;
+}
+
 function geocodeRaces(races) {
   races.forEach((race) => {
     const zip = race.address && race.address.zipcode;
@@ -272,14 +289,8 @@ function jitter(latlon, i) {
 }
 
 // ---------- main flow ----------
-async function fetchRaces(zip, radius, latlon) {
-  let locParam;
-  if (latlon) {
-    locParam = `latitude=${latlon[0]}&longitude=${latlon[1]}`;
-  } else {
-    locParam = `zipcode=${zip}`;
-  }
-  const apiUrl = `https://runsignup.com/Rest/races?format=json&${locParam}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
+async function fetchRaces(zip, radius) {
+  const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
   const url = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
   let txt;
@@ -531,28 +542,28 @@ async function loadAndRender() {
     }
 
     // Determine how to search the API:
-    // - If user entered a zip, always use it for the API (most reliable)
-    // - If no zip but we have geolocation, use lat/lon for the API
-    let apiLatLon = null;
-    if (zip) {
-      // Use zip for API; set user marker to zip location if no geolocation
-      if (!userLatLon) {
-        userLatLon = lookupZip(zip) || DEFAULT_LATLON;
+    // RunSignup's lat/lon search ignores radius, so always use a zip code.
+    // If no zip entered, reverse-lookup the nearest zip from geolocation.
+    let searchZip = zip;
+    if (!searchZip && userLatLon) {
+      searchZip = reverseZipLookup(userLatLon);
+      if (searchZip) {
+        $('#zip-input').value = searchZip;
+        $('#zip-input').placeholder = searchZip;
       }
-    } else {
-      // No zip entered — use geolocation
-      if (userLatLon) {
-        apiLatLon = userLatLon;
-      } else {
-        userLatLon = DEFAULT_LATLON;
-      }
+    }
+    if (!searchZip) {
+      searchZip = DEFAULT_ZIP;
+    }
+    if (!userLatLon) {
+      userLatLon = lookupZip(searchZip) || DEFAULT_LATLON;
     }
 
     setUserMarker(userLatLon);
     map.setView(userLatLon, 10);
 
-    console.log('Search params:', { zip: zip || DEFAULT_ZIP, radius, apiLatLon, userLatLon });
-    const races = await fetchRaces(zip || DEFAULT_ZIP, radius, apiLatLon);
+    console.log('Search params:', { searchZip, radius, userLatLon });
+    const races = await fetchRaces(searchZip, radius);
     // Sort by date
     races.sort((a, b) => {
       const da = parseUSDate(a.next_date); const db = parseUSDate(b.next_date);
