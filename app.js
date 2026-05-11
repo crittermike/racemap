@@ -113,7 +113,7 @@ async function refineRaceLocations() {
   btn.textContent = 'Refining...';
 
   // Only refine currently filtered/displayed races that still use ZIP-level coords
-  const toRefine = allRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
+  const toRefine = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
   let refined = 0;
   const total = toRefine.length;
   const BATCH_SIZE = 3; // concurrent requests to be polite
@@ -149,7 +149,7 @@ async function refineRaceLocations() {
   btn.textContent = `📍 Refine Locations${refined ? ` (${refined} updated)` : ''}`;
   btn.disabled = false;
   // If everything is refined, hide the button
-  const remaining = allRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
+  const remaining = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
   if (remaining === 0) {
     btn.textContent = '✓ All locations refined';
     btn.disabled = true;
@@ -356,6 +356,7 @@ function escapeHtml(s) {
 
 let racesById = {};
 let allRaces = []; // full unfiltered list for re-filtering
+let filteredRaces = []; // currently visible after filters
 
 function focusRace(raceId) {
   const race = racesById[raceId];
@@ -610,6 +611,7 @@ function applyFilters() {
     return true;
   });
 
+  filteredRaces = filtered;
   renderList(filtered);
   plotRaces(filtered);
   setStatus(`${filtered.length} of ${allRaces.length} races`);
