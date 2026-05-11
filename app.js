@@ -704,8 +704,10 @@ function applyFilters() {
 
   const filtered = allRaces.filter((race) => {
     if (search && !(race.name || '').toLowerCase().includes(search)) return false;
-    if (race._distance != null) {
-      if (race._distance < distMin || race._distance > distMax) return false;
+    // Filter by race distance (5K, 10K, etc.) in miles
+    const rd = raceDistMiles(race);
+    if (rd != null) {
+      if (rd < distMin || rd > distMax) return false;
     } else if (distMax < 100) {
       return false; // hide unknown-distance races when filtering
     }
