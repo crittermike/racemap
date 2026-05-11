@@ -273,9 +273,11 @@ function jitter(latlon, i) {
 
 // ---------- main flow ----------
 async function fetchRaces(zip, radius, latlon) {
-  let locParam = `zipcode=${zip}`;
+  let locParam;
   if (latlon) {
     locParam = `latitude=${latlon[0]}&longitude=${latlon[1]}`;
+  } else {
+    locParam = `zipcode=${zip}`;
   }
   const apiUrl = `https://runsignup.com/Rest/races?format=json&${locParam}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
   const url = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(apiUrl)}`;
@@ -549,6 +551,7 @@ async function loadAndRender() {
     setUserMarker(userLatLon);
     map.setView(userLatLon, 10);
 
+    console.log('Search params:', { zip: zip || DEFAULT_ZIP, radius, apiLatLon, userLatLon });
     const races = await fetchRaces(zip || DEFAULT_ZIP, radius, apiLatLon);
     // Sort by date
     races.sort((a, b) => {
@@ -718,13 +721,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = $('#use-location-btn');
     btn.disabled = true;
     btn.textContent = 'Locating...';
-    userLatLon = await getUserLocation();
-    if (userLatLon) {
+    userLatLon = null; // force re-fetch
+    const loc = await getUserLocation();
+    btn.textContent = '📍 Use my location';
+    btn.disabled = false;
+    if (loc) {
+      userLatLon = loc;
       $('#zip-input').value = '';
       loadAndRender();
     } else {
-      btn.textContent = 'Location unavailable';
-      setTimeout(() => { btn.textContent = '📍 Use my location'; btn.disabled = false; }, 2000);
+      btn.textContent = '⚠️ Location unavailable';
+      setTimeout(() => { btn.textContent = '📍 Use my location'; }, 2000);
     }
   });
   $('#sidebar-toggle').addEventListener('click', () => {
