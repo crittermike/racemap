@@ -3,6 +3,7 @@
 
 const DEFAULT_ZIP = '29601';
 const DEFAULT_LATLON = [34.8526, -82.3940]; // Greenville SC fallback
+const PREFS_KEY = 'racemap.prefs.v1';
 
 let map;
 let userMarker = null;
@@ -10,6 +11,14 @@ let raceMarkers = [];
 let userLatLon = null;
 let activeCardId = null;
 let zipLookup = null; // loaded from zipcodes.json
+
+// ---------- preferences ----------
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); } catch { return {}; }
+}
+function savePrefs(prefs) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {}
+}
 
 // ---------- utilities ----------
 function $(sel) { return document.querySelector(sel); }
@@ -151,9 +160,7 @@ function jitter(latlon, i) {
 
 // ---------- main flow ----------
 async function fetchRaces(zip, radius) {
-  const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T`;
-  // RunSignup blocks browser CORS, so route through a public proxy.
-  // codetabs has trailing-slash quirk and sometimes returns 400 with valid body, so don't trust status.
+  const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
   const url = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
   let txt;
@@ -165,6 +172,20 @@ async function fetchRaces(zip, radius) {
   if (data.error) throw new Error(`api error: ${data.error}`);
   const wrapped = (data && data.races) || [];
   return wrapped.map((w) => w.race).filter(Boolean);
+}
+
+const MEDAL_KEYWORDS = /\bmedal\b|\baward\b|\btrophy\b|\bfinisher\s*(\'s)?\s*medal\b/i;
+
+function enrichRace(race) {
+  // Extract event types and giveaways from events array
+  const events = race.events || [];
+  race._eventTypes = [...new Set(events.map((e) => e.event_type).filter(Boolean))];
+  race._giveaways = events.map((e) => e.giveaway || '').filter(Boolean);
+
+  // Detect medal mention in description or giveaways
+  const descText = race._desc || '';
+  const giveawayText = race._giveaways.join(' ');
+  race._hasMedal = MEDAL_KEYWORDS.test(descText) || MEDAL_KEYWORDS.test(giveawayText);
 }
 
 function renderList(races) {
@@ -333,6 +354,10 @@ function plotRaces(races) {
 async function loadAndRender() {
   const zip = $('#zip-input').value.trim() || DEFAULT_ZIP;
   const radius = $('#radius-select').value;
+
+  // Save preferences
+  savePrefs({ zip, radius });
+
   $('#refresh-btn').disabled = true;
   setStatus('Fetching races...');
   $('#race-list').innerHTML = '<p class="empty">Loading...</p>';
@@ -359,8 +384,11 @@ async function loadAndRender() {
     });
 
     setStatus(`Found ${races.length} races.`);
-    // Strip descriptions up front
-    races.forEach((r) => { r._desc = stripHtml(r.description); });
+    // Strip descriptions and enrich with event types + medal detection
+    races.forEach((r) => {
+      r._desc = stripHtml(r.description);
+      enrichRace(r);
+    });
 
     // Look up coordinates instantly from static zip table
     geocodeRaces(races);
@@ -370,10 +398,8 @@ async function loadAndRender() {
       r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
     });
 
-    renderList(races);
-    plotRaces(races);
     allRaces = races;
-    setStatus(`${races.length} races`);
+    applyFilters();
   } catch (e) {
     console.error(e);
     setStatus('Error loading races');
@@ -383,21 +409,43 @@ async function loadAndRender() {
   }
 }
 
+function updateDistLabel() {
+  const min = parseInt($('#filter-dist-min').value);
+  const max = parseInt($('#filter-dist-max').value);
+  $('#dist-label').textContent = `${min} – ${max} mi`;
+}
+
 function applyFilters() {
   const search = ($('#filter-search').value || '').toLowerCase().trim();
-  const maxDist = $('#filter-distance').value ? parseFloat($('#filter-distance').value) : null;
-  const endDateStr = $('#filter-date-end').value;
-  const endDate = endDateStr ? new Date(endDateStr + 'T23:59:59') : null;
-  const openOnly = $('#filter-open-only').checked;
+  const distMin = parseInt($('#filter-dist-min').value);
+  const distMax = parseInt($('#filter-dist-max').value);
+  const dateMonths = $('#filter-date').value ? parseInt($('#filter-date').value) : null;
+  const eventType = $('#filter-type').value;
+  const medalOnly = $('#filter-medal').checked;
+
+  let endDate = null;
+  if (dateMonths) {
+    endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + dateMonths);
+  }
+
+  updateDistLabel();
 
   const filtered = allRaces.filter((race) => {
     if (search && !(race.name || '').toLowerCase().includes(search)) return false;
-    if (maxDist != null && (race._distance == null || race._distance > maxDist)) return false;
+    if (race._distance != null) {
+      if (race._distance < distMin || race._distance > distMax) return false;
+    } else if (distMax < 100) {
+      return false; // hide unknown-distance races when filtering
+    }
     if (endDate) {
       const d = parseUSDate(race.next_date);
       if (d && d > endDate) return false;
     }
-    if (openOnly && race.is_registration_open !== 'T') return false;
+    if (eventType) {
+      if (!race._eventTypes || !race._eventTypes.includes(eventType)) return false;
+    }
+    if (medalOnly && !race._hasMedal) return false;
     return true;
   });
 
@@ -409,6 +457,12 @@ function applyFilters() {
 // ---------- bootstrap ----------
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
+
+  // Restore saved preferences
+  const prefs = loadPrefs();
+  if (prefs.zip) $('#zip-input').value = prefs.zip;
+  if (prefs.radius) $('#radius-select').value = prefs.radius;
+
   $('#refresh-btn').addEventListener('click', () => { userLatLon = null; loadAndRender(); });
   $('#zip-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { userLatLon = null; loadAndRender(); }
@@ -417,9 +471,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Filter listeners
   $('#filter-search').addEventListener('input', applyFilters);
-  $('#filter-distance').addEventListener('change', applyFilters);
-  $('#filter-date-end').addEventListener('change', applyFilters);
-  $('#filter-open-only').addEventListener('change', applyFilters);
+  $('#filter-dist-min').addEventListener('input', () => {
+    // Prevent min from exceeding max
+    const min = parseInt($('#filter-dist-min').value);
+    const max = parseInt($('#filter-dist-max').value);
+    if (min > max) $('#filter-dist-max').value = min;
+    applyFilters();
+  });
+  $('#filter-dist-max').addEventListener('input', () => {
+    const min = parseInt($('#filter-dist-min').value);
+    const max = parseInt($('#filter-dist-max').value);
+    if (max < min) $('#filter-dist-min').value = max;
+    applyFilters();
+  });
+  $('#filter-date').addEventListener('change', applyFilters);
+  $('#filter-type').addEventListener('change', applyFilters);
+  $('#filter-medal').addEventListener('change', applyFilters);
 
+  updateDistLabel();
   loadAndRender();
 });
