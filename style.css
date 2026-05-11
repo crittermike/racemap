@@ -85,16 +85,6 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 /* Dropdowns in filter row share space equally */
 .filter-group .filter-row select { flex: 1; min-width: 0; }
 
-/* Checkbox label */
-.filter-check {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: #475569; cursor: pointer;
-}
-.filter-check input[type="checkbox"] {
-  width: 14px; height: 14px; margin: 0;
-  accent-color: #3b82f6;
-}
-
 /* Slider */
 .slider-row {
   position: relative;

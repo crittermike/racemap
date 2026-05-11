@@ -174,7 +174,6 @@ async function fetchRaces(zip, radius) {
   return wrapped.map((w) => w.race).filter(Boolean);
 }
 
-const MEDAL_KEYWORDS = /\bmedal\b|\baward\b|\btrophy\b|\bfinisher\s*(\'s)?\s*medal\b/i;
 
 function enrichRace(race) {
   // Extract event types and giveaways from events array
@@ -182,10 +181,7 @@ function enrichRace(race) {
   race._eventTypes = [...new Set(events.map((e) => e.event_type).filter(Boolean))];
   race._giveaways = events.map((e) => e.giveaway || '').filter(Boolean);
 
-  // Detect medal mention in description or giveaways
-  const descText = race._desc || '';
-  const giveawayText = race._giveaways.join(' ');
-  race._hasMedal = MEDAL_KEYWORDS.test(descText) || MEDAL_KEYWORDS.test(giveawayText);
+
 }
 
 function renderList(races) {
@@ -421,7 +417,7 @@ function applyFilters() {
   const distMax = parseInt($('#filter-dist-max').value);
   const dateMonths = $('#filter-date').value ? parseInt($('#filter-date').value) : null;
   const eventType = $('#filter-type').value;
-  const medalOnly = $('#filter-medal').checked;
+
 
   let endDate = null;
   if (dateMonths) {
@@ -445,7 +441,7 @@ function applyFilters() {
     if (eventType) {
       if (!race._eventTypes || !race._eventTypes.includes(eventType)) return false;
     }
-    if (medalOnly && !race._hasMedal) return false;
+
     return true;
   });
 
@@ -486,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#filter-date').addEventListener('change', applyFilters);
   $('#filter-type').addEventListener('change', applyFilters);
-  $('#filter-medal').addEventListener('change', applyFilters);
 
   updateDistLabel();
   loadAndRender();
