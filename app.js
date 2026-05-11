@@ -213,9 +213,28 @@ function parseRaceDistMiles(str) {
 
 function raceDistMiles(race) {
   if (!race._distances || !race._distances.length) return null;
-  // Use the shortest distance for coloring
   const parsed = race._distances.map(parseRaceDistMiles).filter((d) => d != null);
   return parsed.length ? Math.min(...parsed) : null;
+}
+
+// Get all distance category labels for a race (e.g. ['5K', 'Half', 'Ultra'])
+function raceDistLabels(race) {
+  if (!race._distances || !race._distances.length) return [];
+  const parsed = race._distances.map(parseRaceDistMiles).filter((d) => d != null);
+  const labels = new Set();
+  parsed.forEach((d) => {
+    for (const band of DIST_COLORS) {
+      if (d <= band.max) { labels.add(band.label); break; }
+    }
+  });
+  return [...labels];
+}
+
+// Get all unique colors for a race's distances
+function raceColors(race) {
+  const labels = raceDistLabels(race);
+  if (!labels.length) return ['#94a3b8'];
+  return labels.map((l) => DIST_COLORS.find((b) => b.label === l)?.color).filter(Boolean);
 }
 
 function distColor(miles) {
@@ -226,17 +245,27 @@ function distColor(miles) {
   return '#94a3b8';
 }
 
-function makeRaceIcon(color, highlighted) {
+function makeRaceIcon(colors, highlighted) {
+  if (typeof colors === 'string') colors = [colors];
   const size = highlighted ? 18 : 14;
   const border = highlighted ? '3px solid #0f172a' : '2px solid white';
   const shadow = highlighted
-    ? `0 0 0 3px ${color}, 0 0 12px ${color}`
+    ? `0 0 0 3px ${colors[0]}, 0 0 12px ${colors[0]}`
     : `0 1px 3px rgba(0,0,0,0.3)`;
+  let bg;
+  if (colors.length === 1) {
+    bg = colors[0];
+  } else {
+    // Conic gradient pie for multi-distance
+    const step = 360 / colors.length;
+    const stops = colors.map((c, i) => `${c} ${i * step}deg ${(i + 1) * step}deg`).join(', ');
+    bg = `conic-gradient(${stops})`;
+  }
   return L.divIcon({
     className: '',
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:${color};border:${border};
+      background:${bg};border:${border};
       box-shadow:${shadow};
     "></div>`,
     iconSize: [size, size],
@@ -348,11 +377,12 @@ function renderList(races) {
     const dist = race._distance;
     const fromYouStr = dist != null ? `${dist.toFixed(1)} mi away` : '';
     const raceDistStr = race._distances.length ? race._distances.join(', ') : '';
-    const color = distColor(raceDistMiles(race));
+    const colors = raceColors(race);
+    const dotBg = colors.length === 1 ? colors[0] : `conic-gradient(${colors.map((c, i) => `${c} ${i * 360 / colors.length}deg ${(i + 1) * 360 / colors.length}deg`).join(', ')})`;
     const open = race.is_registration_open === 'T';
     return `
       <div class="race-card" data-race-id="${race.race_id}">
-        <h3 class="race-name"><span class="dist-dot" style="background:${color}"></span>${escapeHtml(race.name || 'Unnamed race')}</h3>
+        <h3 class="race-name"><span class="dist-dot" style="background:${dotBg}"></span>${escapeHtml(race.name || 'Unnamed race')}</h3>
         <div class="race-meta"><strong>${dateStr}</strong></div>
         <div class="race-meta">${escapeHtml(city)}${fromYouStr ? ' · ' + fromYouStr : ''}</div>
         ${raceDistStr ? `<div class="race-meta">${escapeHtml(raceDistStr)}</div>` : ''}
@@ -375,20 +405,20 @@ function renderList(races) {
     card.addEventListener('mouseenter', () => {
       const race = racesById[parseInt(card.dataset.raceId)];
       if (race && race._marker) {
-        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', true));
+        race._marker.setIcon(makeRaceIcon(race._colors || ['#94a3b8'], true));
         race._marker.setZIndexOffset(900);
       }
     });
     card.addEventListener('mouseleave', () => {
       const race = racesById[parseInt(card.dataset.raceId)];
       if (race && race._marker) {
-        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', false));
+        race._marker.setIcon(makeRaceIcon(race._colors || ['#94a3b8'], false));
         race._marker.setZIndexOffset(0);
       }
     });
   });
 
-  // Legend hover: highlight only races of that distance category
+  // Legend hover: highlight races that have ANY distance in this category
   list.querySelectorAll('.legend-item').forEach((item) => {
     item.addEventListener('mouseenter', () => {
       const label = item.dataset.distLabel;
@@ -396,23 +426,22 @@ function renderList(races) {
       if (!band) return;
       filteredRaces.forEach((race) => {
         if (!race._marker) return;
-        const miles = raceDistMiles(race);
-        const raceLabel = miles != null ? DIST_COLORS.find((b) => miles <= b.max)?.label : null;
-        if (raceLabel === label) {
+        const labels = raceDistLabels(race);
+        const matches = labels.includes(label);
+        if (matches) {
           race._marker.setIcon(makeRaceIcon(band.color, true));
           race._marker.setZIndexOffset(900);
         } else {
           race._marker.setOpacity(0.15);
         }
-        // Dim/highlight cards
         const card = document.querySelector(`.race-card[data-race-id="${race.race_id}"]`);
-        if (card) card.style.opacity = raceLabel === label ? '1' : '0.3';
+        if (card) card.style.opacity = matches ? '1' : '0.3';
       });
     });
     item.addEventListener('mouseleave', () => {
       filteredRaces.forEach((race) => {
         if (!race._marker) return;
-        race._marker.setIcon(makeRaceIcon(race._color || '#94a3b8', false));
+        race._marker.setIcon(makeRaceIcon(race._colors || ['#94a3b8'], false));
         race._marker.setZIndexOffset(0);
         race._marker.setOpacity(1);
         const card = document.querySelector(`.race-card[data-race-id="${race.race_id}"]`);
@@ -481,9 +510,9 @@ function plotRaces(races) {
     const shortDateStr = formatShortDate(date) || '';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
     const dist = race._distance;
-    const color = distColor(raceDistMiles(race));
+    const colors = raceColors(race);
 
-    const icon = makeRaceIcon(color, false);
+    const icon = makeRaceIcon(colors, false);
     const marker = L.marker(ll, { icon });
 
     const raceDistLabel = race._distances.length ? race._distances.join(', ') : '';
@@ -532,7 +561,7 @@ function plotRaces(races) {
       if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     race._marker = marker;
-    race._color = color;
+    race._colors = colors;
     markerGroup.addLayer(marker);
     raceMarkers.push(marker);
   });
