@@ -142,11 +142,16 @@ function jitter(latlon, i) {
 async function fetchRaces(zip, radius) {
   const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T`;
   // RunSignup blocks browser CORS, so route through a public proxy.
-  // codetabs follows redirects and works without auth.
-  const url = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(apiUrl)}`;
+  // codetabs has trailing-slash quirk and sometimes returns 400 with valid body, so don't trust status.
+  const url = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
-  if (!r.ok) throw new Error('API error ' + r.status);
-  const data = await r.json();
+  let txt;
+  try { txt = await r.text(); } catch (e) { throw new Error(`proxy read failed: ${e.message}`); }
+  let data;
+  try { data = JSON.parse(txt); } catch (e) {
+    throw new Error(`proxy returned non-JSON (status ${r.status}): ${txt.slice(0, 120)}`);
+  }
+  if (data.error) throw new Error(`api error: ${data.error}`);
   const wrapped = (data && data.races) || [];
   return wrapped.map((w) => w.race).filter(Boolean);
 }
