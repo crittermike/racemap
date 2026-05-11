@@ -452,16 +452,32 @@ function plotRaces(races) {
       });
     }
 
-    // Click popup with full details
+    // Build rich popup
+    const raceDistances = race._distances.length ? race._distances.join(', ') : '';
+    const eventTypes = race._eventTypes.length ? race._eventTypes.map((t) => t.replace(/_/g, ' ')).join(', ') : '';
+    const giveaways = race._giveaways.length ? [...new Set(race._giveaways)].join(', ') : '';
+    const multiDay = race.next_date !== race.next_end_date && race.next_end_date ? `${dateStr} – ${formatNiceDate(parseUSDate(race.next_end_date))}` : dateStr;
+    const addr = race.address || {};
+    const fullAddr = [addr.street, addr.street2, `${addr.city || ''}, ${addr.state || ''} ${addr.zipcode || ''}`].filter(Boolean).join('<br>');
+    const descSnippet = race._desc ? escapeHtml(race._desc.slice(0, 150)) + (race._desc.length > 150 ? '…' : '') : '';
+    const logoHtml = race.logo_url ? `<img src="${race.logo_url}" alt="" class="popup-logo">` : '';
+    const fromStr = race._distance != null ? `${race._distance.toFixed(1)} mi away` : '';
+
     const popupHtml = `
-      <div>
+      <div class="popup-rich">
+        ${logoHtml}
         <p class="popup-name">${escapeHtml(race.name)}</p>
-        <p class="popup-meta">${dateStr}</p>
-        <p class="popup-meta">${escapeHtml(city)}</p>
-        <p class="popup-meta"><a href="${race.url}" target="_blank" rel="noopener">Race page →</a></p>
+        <p class="popup-meta"><strong>📅</strong> ${multiDay}</p>
+        ${raceDistances ? `<p class="popup-meta"><strong>📏</strong> ${escapeHtml(raceDistances)}</p>` : ''}
+        ${eventTypes ? `<p class="popup-meta"><strong>🏷️</strong> ${escapeHtml(eventTypes)}</p>` : ''}
+        ${giveaways ? `<p class="popup-meta"><strong>🎁</strong> ${escapeHtml(giveaways)}</p>` : ''}
+        <p class="popup-meta"><strong>📍</strong> ${fullAddr}</p>
+        ${fromStr ? `<p class="popup-meta">${fromStr}</p>` : ''}
+        ${descSnippet ? `<p class="popup-desc">${descSnippet}</p>` : ''}
+        <p class="popup-meta"><a href="${race.url}" target="_blank" rel="noopener">View on RunSignUp →</a></p>
       </div>
     `;
-    marker.bindPopup(popupHtml);
+    marker.bindPopup(popupHtml, { maxWidth: 280 });
 
     marker.on('click', () => {
       document.querySelectorAll('.race-card').forEach((c) => c.classList.toggle('active', parseInt(c.dataset.raceId) === race.race_id));
