@@ -176,12 +176,11 @@ async function fetchRaces(zip, radius) {
 
 
 function enrichRace(race) {
-  // Extract event types and giveaways from events array
   const events = race.events || [];
   race._eventTypes = [...new Set(events.map((e) => e.event_type).filter(Boolean))];
   race._giveaways = events.map((e) => e.giveaway || '').filter(Boolean);
-
-
+  // Collect unique race distances (e.g. "5K", "10 Miles")
+  race._distances = [...new Set(events.map((e) => e.distance).filter(Boolean))];
 }
 
 function renderList(races) {
@@ -201,15 +200,16 @@ function renderList(races) {
     const dateStr = formatNiceDate(date) || race.next_date || 'Date TBD';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
     const dist = race._distance;
-    const distStr = dist != null ? `${dist.toFixed(1)} mi away` : '(location unknown)';
+    const fromYouStr = dist != null ? `${dist.toFixed(1)} mi away` : '';
+    const raceDistStr = race._distances.length ? race._distances.join(', ') : '';
     const color = distColor(dist);
     const open = race.is_registration_open === 'T';
     return `
       <div class="race-card" data-race-id="${race.race_id}">
         <h3 class="race-name"><span class="dist-dot" style="background:${color}"></span>${escapeHtml(race.name || 'Unnamed race')}</h3>
         <div class="race-meta"><strong>${dateStr}</strong></div>
-        <div class="race-meta">${escapeHtml(city)}</div>
-        <div class="race-meta">${distStr}</div>
+        <div class="race-meta">${escapeHtml(city)}${fromYouStr ? ' · ' + fromYouStr : ''}</div>
+        ${raceDistStr ? `<div class="race-meta">${escapeHtml(raceDistStr)}</div>` : ''}
         <div class="race-actions">
           <a href="${race.url}" target="_blank" rel="noopener" class="${open ? '' : 'closed'}">
             ${open ? 'Register' : 'View'}
@@ -299,14 +299,15 @@ function plotRaces(races) {
     const shortDateStr = formatShortDate(date) || '';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
     const dist = race._distance;
-    const distStr = dist != null ? `${dist.toFixed(1)} mi` : '';
     const color = distColor(dist);
 
     const icon = makeRaceIcon(color, false);
     const marker = L.marker(ll, { icon }).addTo(map);
 
-    // Permanent tooltip with date + distance
-    const tooltipParts = [shortDateStr, distStr].filter(Boolean).join(' · ');
+    const raceDistLabel = race._distances.length ? race._distances[0] : '';
+
+    // Permanent tooltip with date + race distance
+    const tooltipParts = [shortDateStr, raceDistLabel].filter(Boolean).join(' · ');
     if (tooltipParts) {
       marker.bindTooltip(tooltipParts, {
         permanent: true,
