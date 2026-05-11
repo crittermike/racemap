@@ -140,7 +140,10 @@ function jitter(latlon, i) {
 
 // ---------- main flow ----------
 async function fetchRaces(zip, radius) {
-  const url = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T`;
+  const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T`;
+  // RunSignup does not send CORS headers, so route through a public CORS proxy.
+  // Swap to your own Cloudflare Worker if this proxy disappears.
+  const url = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error('API error ' + r.status);
   const data = await r.json();
