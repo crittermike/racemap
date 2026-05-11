@@ -143,8 +143,9 @@ function clearRaceMarkers() {
 }
 
 function jitter(latlon, i) {
-  const offset = 0.005;
-  const angle = (i * 137.5) * Math.PI / 180;
+  if (i === 0) return latlon; // first pin stays at center
+  const offset = 0.003 + (i * 0.001); // grow slightly per pin
+  const angle = (i * 137.5) * Math.PI / 180; // golden angle spiral
   return [latlon[0] + Math.cos(angle) * offset, latlon[1] + Math.sin(angle) * offset];
 }
 
@@ -251,6 +252,17 @@ function plotRaces(races) {
   clearRaceMarkers();
   racesById = {};
   let jitterIdx = 0;
+
+  // Count how many races share each lat/lon so we can spread them out
+  const locCounts = {};
+  races.forEach((race) => {
+    if (race._latlon) {
+      const key = race._latlon.join(',');
+      locCounts[key] = (locCounts[key] || 0) + 1;
+    }
+  });
+  const locIndexes = {};
+
   races.forEach((race) => {
     racesById[race.race_id] = race;
     let ll = race._latlon;
@@ -258,6 +270,13 @@ function plotRaces(races) {
       ll = jitter(userLatLon, jitterIdx++);
     }
     if (!ll) return;
+
+    // Spread out pins sharing the same location
+    const key = ll.join(',');
+    if (locCounts[key] > 1) {
+      locIndexes[key] = (locIndexes[key] || 0);
+      ll = jitter(ll, locIndexes[key]++);
+    }
     const date = parseUSDate(race.next_date);
     const dateStr = formatNiceDate(date) || race.next_date || '';
     const shortDateStr = formatShortDate(date) || '';
