@@ -116,12 +116,13 @@ async function refineRaceLocations() {
     btn.disabled = true;
     btn.textContent = 'Refining...';
   }
+  setStatus('📍 Refining locations...');
 
   // Only refine currently filtered/displayed races that still use ZIP-level coords
   const toRefine = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r));
   let refined = 0;
   const total = toRefine.length;
-  const BATCH_SIZE = 3; // concurrent requests to be polite
+  const BATCH_SIZE = 3;
 
   for (let i = 0; i < toRefine.length; i += BATCH_SIZE) {
     const batch = toRefine.slice(i, i + BATCH_SIZE);
@@ -134,14 +135,14 @@ async function refineRaceLocations() {
           race._latlonSource = 'address';
           refined++;
         } else {
-          race._latlonSource = 'zip-final'; // mark as attempted, no better result
+          race._latlonSource = 'zip-final';
         }
       } catch (e) {
         console.warn('Photon geocode failed for', race.name, e);
         race._latlonSource = 'zip-final';
       }
     }));
-    if (btn) btn.textContent = `Refining... ${Math.min(i + BATCH_SIZE, total)}/${total}`;
+    setStatus(`📍 Refining locations... ${Math.min(i + BATCH_SIZE, total)}/${total}`);
     if (i + BATCH_SIZE < toRefine.length) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
@@ -153,6 +154,7 @@ async function refineRaceLocations() {
   allRaces.forEach((r) => {
     r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
   });
+  setStatus(refined ? `✓ Refined ${refined} location${refined === 1 ? '' : 's'}` : '');
   applyFilters();
 }
 
@@ -270,8 +272,12 @@ function jitter(latlon, i) {
 }
 
 // ---------- main flow ----------
-async function fetchRaces(zip, radius) {
-  const apiUrl = `https://runsignup.com/Rest/races?format=json&zipcode=${zip}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
+async function fetchRaces(zip, radius, latlon) {
+  let locParam = `zipcode=${zip}`;
+  if (latlon) {
+    locParam = `latitude=${latlon[0]}&longitude=${latlon[1]}`;
+  }
+  const apiUrl = `https://runsignup.com/Rest/races?format=json&${locParam}&radius=${radius}&start_date=${todayISO()}&results_per_page=50&events=T&only_races_with_open_reg=T`;
   const url = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(apiUrl)}`;
   const r = await fetch(url);
   let txt;
@@ -518,6 +524,7 @@ async function loadAndRender() {
 
     // Resolve user location: prefer geolocation, else look up the zip
     if (!userLatLon) {
+      setStatus('Getting your location...');
       userLatLon = await getUserLocation();
     }
     if (!userLatLon) {
@@ -526,7 +533,9 @@ async function loadAndRender() {
     setUserMarker(userLatLon);
     map.setView(userLatLon, 10);
 
-    const races = await fetchRaces(zip, radius);
+    // Use lat/lon for API if we have precise geolocation, else use zip
+    const useLatLon = userLatLon ? userLatLon : null;
+    const races = await fetchRaces(zip, radius, useLatLon);
     // Sort by date
     races.sort((a, b) => {
       const da = parseUSDate(a.next_date); const db = parseUSDate(b.next_date);
@@ -691,8 +700,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#zip-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { userLatLon = null; loadAndRender(); }
   });
-  $('#sidebar-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
-  $('#show-map-btn').addEventListener('click', () => $('#sidebar').classList.remove('open'));
+  $('#sidebar-toggle').addEventListener('click', () => {
+    const sb = $('#sidebar');
+    sb.classList.toggle('open');
+    $('#sidebar-toggle').textContent = sb.classList.contains('open') ? '🗺️ Map' : '☰ List';
+  });
+  $('#show-map-btn').addEventListener('click', () => {
+    $('#sidebar').classList.remove('open');
+    $('#sidebar-toggle').textContent = '☰ List';
+  });
   $('#refine-btn').addEventListener('click', refineRaceLocations);
 
   // Filter listeners
@@ -715,6 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mobile: auto-open sidebar on load
   if (window.innerWidth <= 768) {
     $('#sidebar').classList.add('open');
+    $('#sidebar-toggle').textContent = '🗺️ Map';
   }
 
   updateDistLabel();
