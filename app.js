@@ -561,7 +561,6 @@ async function loadAndRender() {
   // Save preferences
   savePrefs({ zip, radius });
 
-  $('#refresh-btn').disabled = true;
   setStatus('Fetching races...');
   $('#race-list').innerHTML = '<p class="empty">Loading...</p>';
   try {
@@ -626,7 +625,6 @@ async function loadAndRender() {
     setStatus('Error loading races');
     $('#race-list').innerHTML = `<p class="empty">Error: ${escapeHtml(e.message)}</p>`;
   } finally {
-    $('#refresh-btn').disabled = false;
   }
 }
 
@@ -771,10 +769,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prefs.radius) $('#radius-select').value = prefs.radius;
   }
 
-  $('#refresh-btn').addEventListener('click', () => { loadAndRender(); });
-  $('#zip-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loadAndRender();
+  // Auto-search when zip or radius changes
+  let _zipDebounce = null;
+  $('#zip-input').addEventListener('input', () => {
+    clearTimeout(_zipDebounce);
+    const v = $('#zip-input').value.trim();
+    if (v.length === 5) {
+      _zipDebounce = setTimeout(() => loadAndRender(), 300);
+    }
   });
+  $('#zip-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { clearTimeout(_zipDebounce); loadAndRender(); }
+  });
+  $('#radius-select').addEventListener('change', () => loadAndRender());
   $('#use-location-btn').addEventListener('click', async () => {
     const btn = $('#use-location-btn');
     btn.disabled = true;

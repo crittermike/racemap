@@ -73,15 +73,8 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 #radius-select { flex: 0 0 auto; }
 .filter-full { width: 100%; }
 
-/* Search button */
-#refresh-btn {
-  flex: 1;
-  padding: 6px 0; border-radius: 6px; border: none; cursor: pointer;
-  background: #3b82f6; color: white; font-weight: 600; font-size: 13px;
-  transition: background 0.15s;
-}
-#refresh-btn:hover { background: #2563eb; }
-#refresh-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+/* Zip input wider without search button */
+#zip-input { width: 100px; }
 
 .use-location-btn {
   display: block; padding: 0; margin: 2px 0 0;
