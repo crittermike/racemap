@@ -395,7 +395,7 @@ async function loadAndRender() {
       r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
     });
 
-    allRaces = races;
+    allRaces = races.filter((r) => r._distances.length > 0);
     applyFilters();
   } catch (e) {
     console.error(e);
