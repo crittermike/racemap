@@ -113,7 +113,6 @@ async function refineRaceLocations() {
   _refining = true;
   const btn = $('#refine-btn');
   if (btn) {
-    btn.style.display = '';
     btn.disabled = true;
     btn.textContent = 'Refining...';
   }
@@ -126,7 +125,7 @@ async function refineRaceLocations() {
 
   for (let i = 0; i < toRefine.length; i += BATCH_SIZE) {
     const batch = toRefine.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map(async (race) => {
+    await Promise.all(batch.map(async (race) => {
       const query = buildAddressQuery(race);
       try {
         const coords = await photonGeocode(query);
@@ -134,13 +133,15 @@ async function refineRaceLocations() {
           race._latlon = coords;
           race._latlonSource = 'address';
           refined++;
+        } else {
+          race._latlonSource = 'zip-final'; // mark as attempted, no better result
         }
       } catch (e) {
         console.warn('Photon geocode failed for', race.name, e);
+        race._latlonSource = 'zip-final';
       }
     }));
     if (btn) btn.textContent = `Refining... ${Math.min(i + BATCH_SIZE, total)}/${total}`;
-    // Small delay between batches to be polite to the free API
     if (i + BATCH_SIZE < toRefine.length) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
@@ -153,16 +154,6 @@ async function refineRaceLocations() {
     r._distance = r._latlon && userLatLon ? haversineMiles(userLatLon, r._latlon) : null;
   });
   applyFilters();
-
-  if (btn) {
-    const remaining = filteredRaces.filter((r) => r._latlonSource === 'zip' && buildAddressQuery(r)).length;
-    if (remaining === 0) {
-      btn.style.display = 'none';
-    } else {
-      btn.textContent = `📍 Refine ${remaining} Locations`;
-      btn.disabled = false;
-    }
-  }
 }
 
 // ---------- geolocation ----------
@@ -179,11 +170,34 @@ function getUserLocation() {
 
 // ---------- distance-based pin colors ----------
 const DIST_COLORS = [
-  { max: 10, color: '#10b981', label: '< 10 mi' },   // green
-  { max: 25, color: '#3b82f6', label: '10–25 mi' },   // blue
-  { max: 50, color: '#f59e0b', label: '25–50 mi' },   // amber
-  { max: Infinity, color: '#ef4444', label: '50+ mi' } // red
+  { max: 3.2, color: '#10b981', label: '5K' },          // green
+  { max: 6.3, color: '#06b6d4', label: '10K' },          // cyan
+  { max: 13.2, color: '#3b82f6', label: 'Half' },        // blue
+  { max: 26.3, color: '#8b5cf6', label: 'Marathon' },     // purple
+  { max: Infinity, color: '#ef4444', label: 'Ultra' }     // red
 ];
+
+// Parse a race distance string like "5K", "10 Miles", "Half Marathon" into miles
+function parseRaceDistMiles(str) {
+  if (!str) return null;
+  const s = str.toLowerCase().trim();
+  if (/half\s*marathon/.test(s)) return 13.1;
+  if (/marathon/.test(s) && !/half|ultra/.test(s)) return 26.2;
+  const kmMatch = s.match(/^([\d.]+)\s*k(m|ilometer)?/i);
+  if (kmMatch) return parseFloat(kmMatch[1]) * 0.621371;
+  const miMatch = s.match(/^([\d.]+)\s*(mi|mile)/i);
+  if (miMatch) return parseFloat(miMatch[1]);
+  const bareNum = s.match(/^([\d.]+)$/);
+  if (bareNum) return parseFloat(bareNum[1]) * 0.621371; // assume km if just a number
+  return null;
+}
+
+function raceDistMiles(race) {
+  if (!race._distances || !race._distances.length) return null;
+  // Use the shortest distance for coloring
+  const parsed = race._distances.map(parseRaceDistMiles).filter((d) => d != null);
+  return parsed.length ? Math.min(...parsed) : null;
+}
 
 function distColor(miles) {
   if (miles == null) return '#94a3b8'; // gray for unknown
@@ -315,7 +329,7 @@ function renderList(races) {
     const dist = race._distance;
     const fromYouStr = dist != null ? `${dist.toFixed(1)} mi away` : '';
     const raceDistStr = race._distances.length ? race._distances.join(', ') : '';
-    const color = distColor(dist);
+    const color = distColor(raceDistMiles(race));
     const open = race.is_registration_open === 'T';
     return `
       <div class="race-card" data-race-id="${race.race_id}">
@@ -420,7 +434,7 @@ function plotRaces(races) {
     const shortDateStr = formatShortDate(date) || '';
     const city = race.address ? `${race.address.city || ''}${race.address.state ? ', ' + race.address.state : ''}` : '';
     const dist = race._distance;
-    const color = distColor(dist);
+    const color = distColor(raceDistMiles(race));
 
     const icon = makeRaceIcon(color, false);
     const marker = L.marker(ll, { icon });
